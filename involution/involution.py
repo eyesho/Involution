@@ -114,28 +114,21 @@ class Involution2d(nn.Module):
         # Check input dimension of input tensor
         assert input.ndimension() == 4, \
             "Input tensor to involution must be 4d but {}d tensor is given".format(input.ndimension())
-        # Save input shape and compute output shapes
-        batch_size, _, in_height, in_width = input.shape
-        out_height = (in_height + 2 * self.padding[0] - self.dilation[0] * (self.kernel_size[0] - 1) - 1) \
-                     // self.stride[0] + 1
-        out_width = (in_width + 2 * self.padding[1] - self.dilation[1] * (self.kernel_size[1] - 1) - 1) \
-                    // self.stride[1] + 1
+        # Save input shape
+        batch_size, in_channels, height, width = input.shape
         # Unfold and reshape input tensor
         input_unfolded = self.unfold(self.initial_mapping(input))
         input_unfolded = input_unfolded.view(batch_size, self.groups, self.out_channels // self.groups,
-                                             self.kernel_size[0] * self.kernel_size[1],
-                                             out_height, out_width)
+                                             self.kernel_size[0] * self.kernel_size[1], height, width)
         # Generate kernel
         kernel = self.span_mapping(self.sigma_mapping(self.reduce_mapping(self.o_mapping(input))))
-        kernel = kernel.view(batch_size, self.groups, self.kernel_size[0] * self.kernel_size[1],
-                             kernel.shape[-2], kernel.shape[-1]).unsqueeze(dim=2)
+        kernel = kernel.view(
+            batch_size, self.groups, self.kernel_size[0] * self.kernel_size[1], height, width).unsqueeze(dim=2)
         # Apply kernel to produce output
-        output = (kernel * input_unfolded).sum(dim=3)
-        # Reshape output
-        output = output.view(batch_size, -1, output.shape[-2], output.shape[-1])
+        output = (kernel * input_unfolded).sum(dim=3).view(batch_size, -1, height, width)
         return output
 
-
+    
 class Involution3d(nn.Module):
     """
     This class implements the 3d involution.
@@ -248,20 +241,14 @@ class Involution3d(nn.Module):
     def forward(self, input: torch.Tensor) -> torch.Tensor:
         """
         Forward pass
-        :param input: (torch.Tensor) Input tensor of the shape [batch size, in channels, depth, height, width]
-        :return: (torch.Tensor) Output tensor of the shape [batch size, out channels, depth, height, width] (w/ same padding)
+        :param input: (torch.Tensor) Input tensor of the shape [batch size, in channels, height, width]
+        :return: (torch.Tensor) Output tensor of the shape [batch size, out channels, height, width] (w/ same padding)
         """
         # Check input dimension of input tensor
         assert input.ndimension() == 5, \
             "Input tensor to involution must be 5d but {}d tensor is given".format(input.ndimension())
-        # Save input shapes and compute output shapes
-        batch_size, _, in_depth, in_height, in_width = input.shape
-        out_depth = (in_depth + 2 * self.padding[0] - self.dilation[0] * (self.kernel_size[0] - 1) - 1) \
-                    // self.stride[0] + 1
-        out_height = (in_height + 2 * self.padding[1] - self.dilation[1] * (self.kernel_size[1] - 1) - 1) \
-                     // self.stride[1] + 1
-        out_width = (in_width + 2 * self.padding[2] - self.dilation[2] * (self.kernel_size[2] - 1) - 1) \
-                    // self.stride[2] + 1
+        # Save input shape
+        batch_size, in_channels, height, width, depth = input.shape
         # Unfold and reshape input tensor
         input_initial = self.initial_mapping(input)
         input_unfolded = self.pad(input_initial) \
@@ -269,16 +256,13 @@ class Involution3d(nn.Module):
             .unfold(dimension=3, size=self.kernel_size[1], step=self.stride[1]) \
             .unfold(dimension=4, size=self.kernel_size[2], step=self.stride[2])
         input_unfolded = input_unfolded.reshape(batch_size, self.groups, self.out_channels // self.groups,
-                                                self.kernel_size[0] * self.kernel_size[1] * self.kernel_size[2], -1)
-        input_unfolded = input_unfolded.reshape(tuple(input_unfolded.shape[:-1])
-                                                + (out_depth, out_height, out_width))
+                                                self.kernel_size[0] * self.kernel_size[1] * self.kernel_size[2],
+                                                height, width, depth)
         # Generate kernel
         kernel = self.span_mapping(self.sigma_mapping(self.reduce_mapping(self.o_mapping(input))))
         kernel = kernel.view(
             batch_size, self.groups, self.kernel_size[0] * self.kernel_size[1] * self.kernel_size[2],
-            kernel.shape[-3], kernel.shape[-2], kernel.shape[-1]).unsqueeze(dim=2)
+            height, width, depth).unsqueeze(dim=2)
         # Apply kernel to produce output
-        output = (kernel * input_unfolded).sum(dim=3)
-        # Reshape output
-        output = output.view(batch_size, -1, output.shape[-3], output.shape[-2], output.shape[-1])
+        output = (kernel * input_unfolded).sum(dim=3).view(batch_size, -1, height, width, depth)
         return output
