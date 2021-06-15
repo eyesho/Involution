@@ -3,7 +3,7 @@ from setuptools import setup
 setup(
     name="involution",
     version="0.2",
-    url="https://github.com/ChristophReich1996/Involution",
+    url="https://github.com/eyesho/Involution",
     license="MIT License",
     author="Christoph Reich",
     author_email="ChristophReich@gmx.net",
